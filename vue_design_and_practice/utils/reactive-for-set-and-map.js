@@ -57,7 +57,7 @@ function trigger(target, key, type, newVal) {
     const effects = depsMap.get(key)
     // 取出与ITERATE_KEY相关的副作用函数
     const iterateEffects = depsMap.get(ITERATE_KEY)
-    
+
     const effectsToRun = new Set()
     // 将与key关联的副作用函数添加到effectsToRun
     effects && effects.forEach(effectFn => {
@@ -73,6 +73,18 @@ function trigger(target, key, type, newVal) {
     )) {
         // 将与ITERATE_KEY关联的副作用函数添加到effectsToRun
         iterateEffects && iterateEffects.forEach(effectFn => {
+            if(effectFn !== activeEffect) {
+                effectsToRun.add(effectFn)
+            }
+        })
+    }
+    if(( type === TriggerType.ADD || 
+        type === TriggerType.DELETE) && 
+        Object.prototype.toString.call(target) === '[object Map]'
+    ) {
+        // 将与MAP_KEY_ITERATE_KEY关联的副作用函数添加到effectsToRun
+        const iterateForKeysEffects = depsMap.get(MAP_KEY_ITERATE_KEY)
+        iterateForKeysEffects && iterateForKeysEffects.forEach(effectFn => {
             if(effectFn !== activeEffect) {
                 effectsToRun.add(effectFn)
             }
@@ -308,25 +320,71 @@ const mutableInstrumentations = {
             callback.call(thisArg, wrap(v), wrap(k), this)
         })
     },
-    [Symbol.iterator]() {
-        const target = this.raw
-        const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
-        // 获取原始对象的迭代器方法
-        const itr = target[Symbol.iterator]()
-        // track
-        track(target, ITERATE_KEY)
-        // 使用自定义的迭代器方法
-        return {
-            next() {
-                const { value, done } = itr.next()
-                return {
-                    value: value ? [wrap(value[0]), wrap(value[1])] : value,
-                    done
-                }
+    [Symbol.iterator]: iterationMethod,
+    entries: iterationMethod,
+    values: valuesIterationMethod,
+    keys: keysIterationMethod,
+}
+// 抽离迭代器方法
+function iterationMethod() {
+    const target = this.raw
+    const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
+    // 获取原始对象的迭代器方法
+    const itr = target[Symbol.iterator]()
+    // track
+    track(target, ITERATE_KEY)
+    // 使用自定义的迭代器方法
+    return {
+        next() {
+            const { value, done } = itr.next()
+            return {
+                value: value ? [wrap(value[0]), wrap(value[1])] : value,
+                done
             }
+        },
+        [Symbol.iterator]() {
+            return this
         }
-        return itr
     }
+}
+function valuesIterationMethod() {
+    const target = this.raw
+    const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
+    const itr = target.values()
+    // track
+    track(target, ITERATE_KEY)
+    return {
+        next() {
+            const { value, done } = itr.next()
+            return {
+                value: wrap(value),
+                done
+            }
+        },
+        [Symbol.iterator]() {
+            return this
+        }
+    }
+}
+const MAP_KEY_ITERATE_KEY = Symbol()
+function keysIterationMethod() {
+    const target = this.raw
+    const wrap = (val) => typeof val === 'object' && val !== null ? reactive(val) : val
+    const itr = target.keys()
+    // 区别
+    track(target, MAP_KEY_ITERATE_KEY)
+    return {
+        next() {
+            const { value, done } = itr.next()
+            return {
+                value: wrap(value),
+                done
+            }
+        },
+        [Symbol.iterator]() {
+            return this
+        }
+    } 
 }
 
 // 使用一个Map去存储原始对象和代理对象的实例

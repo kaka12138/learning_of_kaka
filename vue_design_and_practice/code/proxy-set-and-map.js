@@ -60,12 +60,37 @@ import { effect, reactive } from "../utils/reactive-for-set-and-map.js"
 //     p.get(key).delete(1)
 // }, 1000)
 
-const p2 = reactive(new Map([[ 'key', NaN ]]))
+const p2 = reactive(new Map([[ 'key', NaN ], ['key2', 222]]))
+// effect(() => {
+//     p2.forEach((value, key) => {
+//         console.log("修改也会触发副作用函数的", value)
+//     })
+// })
+// setTimeout(() => {
+//     p2.set('key', 22)
+// }, 1000)
+
+// 迭代器和entries, values
+// effect(() => {
+//   for(const [key, value] of p2.entries()) {
+//     console.log("遍历entries", key, value)
+//   }
+// })
+
+// effect(() => {
+//   for(const value of p2.values()) {
+//     console.log("遍历values", value)
+//   }
+// })
+
 effect(() => {
-    p2.forEach((value, key) => {
-        console.log("修改也会触发副作用函数的", value)
-    })
+  for(const key of p2.keys()) {
+    console.log("遍历keys", key)
+  }
 })
+
 setTimeout(() => {
-    p2.set('key', 22)
+    // 修改相同的key对应的值，不能触发副作用函数
+    // p2.set('key2', 100)
+    p2.set('key3', 333)
 }, 1000)

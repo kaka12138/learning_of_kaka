@@ -138,15 +138,42 @@ function createReactive(obj, isShallow = false, isReadaonly = false) {
             if(key === 'raw') {
                 return target
             }
-            // 处理Set,Map的size属性和delete方法产生的问题
-            if(key === 'size') {
-                // 响应联系需要建立在 ITERATE_KEY 与副作用函数之间，这是因为任何新增、删除操作都会影响 size 属性
-                track(target, ITERATE_KEY)
-                return Reflect.get(target, key, target) // 访问size时,改变this指向
+            const targetType = Object.prototype.toString.call(target)
+            if(targetType === "[object Set]" || targetType === "[object Map]") {
+                // 处理Set,Map的size属性和delete方法产生的问题
+                if(key === 'size') {
+                    // 响应联系需要建立在 ITERATE_KEY 与副作用函数之间，这是因为任何新增、删除操作都会影响 size 属性
+                    track(target, ITERATE_KEY)
+                    return Reflect.get(target, key, target) // 访问size时,改变this指向
+                }
+
+                // TODO: 返回处理Set的自定义方法
+                return mutableInstrumentations[key]
             }
 
-            // TODO: 返回处理Set的自定义方法
-            return mutableInstrumentations[key]
+            // 处理重写的数组方法
+            if(Array.isArray(obj) && arrayInstrumentations.hasOwnProperty(key)) {
+                // console.log("返回的结果", Reflect.get(arrayInstrumentations, key, receiver))
+                return Reflect.get(arrayInstrumentations, key, receiver) // TODO: 返回是函数还是结果???
+            }
+            // 非只读数据才track, 建立响应
+            // 解决一个性能问题(无效的建立track)：
+                // for...of遍历数组时, 会去读取Symbol.iterator 属性, 应该避免去track改属性
+            if(!isReadaonly && typeof key !== 'symbol') {
+                track(target, key)
+            }
+            // 获取get访问结果
+            const res = Reflect.get(target, key, receiver) // 当前对象上不存在属性时, 调用原型的[[Get]]
+            // 浅响应
+            if(isShallow) {
+                return res
+            }
+            // 深响应
+            if(typeof res === 'object' && res !== null) {
+                // 继续递归, 将结果包装成响应式数据
+                return isReadaonly ? readonly(res) : reactive(res)
+            }
+            return res
         },
         // 2.拦截判断对象或原型上是否存在给定的 key：key in obj
         has(target, key) {

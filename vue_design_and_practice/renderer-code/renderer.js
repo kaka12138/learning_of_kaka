@@ -17,13 +17,29 @@ function createRenderer(options) {
      * @param {挂载点, 容器} container 
      */
     function patch(n1, n2, container) {
-        // 不存在旧节点, 进行挂载操作
-        if(!n1) {
-            mountElement(n2, container)
-        }else {
-            // 存在旧节点, 进行patch操作
+        // 处理节点类型不同的情况: 直接卸载旧节点
+        if(n1 && n1.type !== n2.type) {
+            unmount(n1)
+            n1 = null
         }
         
+        const { type } = n
+        // 根据节点类型做更新操作
+        if(type === 'string') {
+            // 普通节点
+            if(!n1) {
+                mountElement(n2, container)
+            }else {
+                // 更新操作
+            }
+            
+        }else if(type === 'object') {
+            // 组件节点
+            
+        }else if(type === 'xxx') {
+            // 其他类型
+
+        }    
     }
     /**
      * 

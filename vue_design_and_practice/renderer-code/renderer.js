@@ -8,7 +8,9 @@ function createRenderer(options) {
         createElement,
         setElementText,
         insert,
-        patchProps
+        patchProps,
+        createText,
+        setText,
     } = options
     /**
      * 
@@ -34,10 +36,30 @@ function createRenderer(options) {
                 patchElement(n1, n2)
             }
             
-        }else if(type === 'object') {
+        } else if(type === Text) {
+            // 文本节点
+            if(!n1) {
+                // 没有旧节点,直接挂载
+                const el = n2.el = createText(n2.children)
+                insert(el, container)
+            }else {
+                const el = n2.el = n1.el
+                // 存在旧节点,更新节点
+                if(n2.children !== n1.children) {
+                    setText(el, n2.children)
+                }
+            }
+        } else if(type === Fragment) {
+            // Fragment节点：本身不渲染, 只渲染其children
+            if(!n1) {
+                n2.forEach(child => patch(null, child, container))
+            }else {
+                patchChildren(n1, n2, container)
+            }
+        } else if(type === 'object') {
             // 组件节点
             
-        }else if(type === 'xxx') {
+        } else if(type === 'xxx') {
             // 其他类型
 
         }    
@@ -91,11 +113,21 @@ function createRenderer(options) {
      * @param {虚拟Dom} vnode 
      */
     function unmount(vnode) {
+        // vnode为Fragment类型, 卸载其children
+        if(vnode.type === Fragment) {
+            vnode.children.forEach(child => unmount(child))
+            return
+        }
         const parent = vnode.el.parentNode
         if(parent) {
             parent.removeChild(vnode.el)
         }
     }
+    /**
+     * 
+     * @param {旧vnode} n1 
+     * @param {新vnode} n2 
+     */
     function patchElement(n1, n2) {
         const el = n2.el = n1.el // 这里取的是旧节点的Dom
         const oldProps = n1.props
@@ -137,11 +169,22 @@ function createRenderer(options) {
             // 新节点：一组节点
             
             // 旧节点：也是一组节点
-            if(Array.isArray(n2.children)) {
+            if(Array.isArray(n1.children)) {
                 // TODO: diff算法比较新旧节点
+                // 简单的做法
+                n1.children.forEach(child => unmount(child))
+                n2.children.forEach(child => patch(null, child, container))
             } else {
                 // 其他两种情况：清除旧节点内部内容, 挂载新节点的内心
+                setElementText(container, "")
                 n2.children.forEach(child => patch(null, child, container))
+            }
+        }else {
+            // 新节点：没有子节点
+            if(Array.isArray(n1.children)) {
+                n1.children.forEach(child => unmount(child))
+            }else if(typeof n1.children === "string") {
+                setElementText(container, n1.children)
             }
         }
     }
@@ -178,22 +221,20 @@ const renderer = createRenderer({
         console.log(`创建${tag}元素`)
         return { tag }
     },
+    createText(text) {
+        return document.createTextNode(text)
+    },
+    setText(el, text) {
+        el.nodeValue = text
+    },
+    createComment(comment) {
+        return document.createComment(comment)
+    },
     setElementText(el, text) {
         console.log(`设置${JSON.stringify(el)}的文本内容：${text}`)
         el.textContent = text
     },
     patchProps(el, key, preValue, nextValue) {
-        /*
-            旧的事件处理:
-             if(/^on/.test(key)) {
-                // 取出事件名
-                const name = key.slice(2).toLowerCase()
-                // 移除旧事件
-                preValue && el.removeEventListener(name, preValue)
-                // 绑定事件
-                el.addEventListener(name, nextValue)
-            }
-        */
         if(shouldSetAsProps(el, key, nextValue)) {
             const type = typeof el[key]
             // 处理事件
@@ -254,24 +295,59 @@ const renderer = createRenderer({
 // }
 
 // vnode描述事件
-const vnode = {
-    type: 'p',
-    props: {
-        onClick: [
-            () => {
-                alert('clicked1')
-            },
-            () => {
-                alert('clicked2')
-            }
-        ],
-        onContextmenu: [
-            () => {
-                alert("onContextmenu")
-            }
-        ]
-    },
-    children: 'text'
+// const vnode = {
+//     type: 'p',
+//     props: {
+//         onClick: [
+//             () => {
+//                 alert('clicked1')
+//             },
+//             () => {
+//                 alert('clicked2')
+//             }
+//         ],
+//         onContextmenu: [
+//             () => {
+//                 alert("onContextmenu")
+//             }
+//         ]
+//     },
+//     children: 'text'
+// }
+
+// 描述文本节点, 注释节点, Fragment
+const Text = Symbol()
+const Comment = Symbol()
+const Fragment = Symbol()
+const textVnode = {
+    type: Text,
+    children: "文本节点内容"
 }
+const commentVnode = {
+    type: Comment,
+    children: "注释节点内容"
+}
+const fragmentVnode= {
+    type: Fragment,
+    children: [
+        { type: 'li', children: 'text1' },
+        { type: 'li', children: 'text2' },
+        { type: 'li', children: 'text3' },
+    ]
+}
+const listVnode = {
+    type: 'ul',
+    children: [
+        {
+            type: Fragment,
+            children: [
+                { type: 'li', children: 'text1' },
+                { type: 'li', children: 'text2' },
+                { type: 'li', children: 'text3' },
+            ]
+        }
+    ]
+}
+
 const container = { type: 'root' }
 renderer.render(vnode, container)

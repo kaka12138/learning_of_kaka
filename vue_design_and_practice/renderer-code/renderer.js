@@ -7,7 +7,8 @@ function createRenderer(options) {
     const {
         createElement,
         setElementText,
-        insert
+        insert,
+        patchProps
     } = options
     /**
      * 
@@ -49,6 +50,13 @@ function createRenderer(options) {
         if(typeof vnode.children === 'string') {
             setElementText(el, vnode.children)
         }
+
+        // 处理props
+        if(vnode.props) {
+            for(const key in vnode.props) {
+                patchProps(el, key, null, vnode.props[key])
+            }
+        }
         // 将元素插入到容器
         insert(el, container)
         
@@ -56,6 +64,12 @@ function createRenderer(options) {
     return {
         render
     }
+}
+
+/// utils
+function shouldSetAsProps(el, key, value) {
+    if(el.tagName === "INPUT" && key === 'form') return false
+    return key in el
 }
 
 // test
@@ -67,6 +81,18 @@ const renderer = createRenderer({
     setElementText(el, text) {
         console.log(`设置${JSON.stringify(el)}的文本内容：${text}`)
         el.textContent = text
+    },
+    patchProps(el, key, preValue, nextValue) {
+        if(shouldSetAsProps(el, key, nextValue)) {
+            const type = typeof el[key]
+            if(type === 'boolean' && nextValue === '') {
+                el[key] = true
+            }else {
+                el[key] = nextValue
+            }
+        }else {
+            el.setAttribute(key, nextValue)
+        }
     },
     // 在特定的parent下添加指定元素, anchor为null将被插入到parent的末尾
     insert(el, parent, anchor = null) {

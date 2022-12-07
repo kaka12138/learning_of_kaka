@@ -128,10 +128,49 @@ const renderer = createRenderer({
         el.textContent = text
     },
     patchProps(el, key, preValue, nextValue) {
+        /*
+            旧的事件处理:
+             if(/^on/.test(key)) {
+                // 取出事件名
+                const name = key.slice(2).toLowerCase()
+                // 移除旧事件
+                preValue && el.removeEventListener(name, preValue)
+                // 绑定事件
+                el.addEventListener(name, nextValue)
+            }
+        */
         if(shouldSetAsProps(el, key, nextValue)) {
             const type = typeof el[key]
-            // 处理class属性
-            if(key === 'class') {
+            // 处理事件
+            if(/^on/.test(key)) {
+                // 将el.vei定义成对象, 避免不同事件的屏蔽问题
+                const invokers = el.vei || (el.vei = {})
+                // 获取伪造的事件处理函数invoker
+                let invoker = invokers[key]
+                const name = key.slice(2).toLowerCase()
+                if(nextValue) {
+                    if(!invoker) {
+                        invoker = el.vei[key] = (e) => {
+                            // 处理多个事件回调处理函数的情况, 遍历调用回调函数
+                            if(Array.isArray(invoker.value)) {
+                                invoker.value.forEach(fn => fn(e))
+                            }else {
+                                invoker.value(e)
+                            }
+                        }
+                        invoker.value = nextValue
+                        el.addEventListener(name, invoker)
+                    }else {
+                        // 事件变化时, 更新invoker, 可以减少removeEventListener操作
+                        invoker.value = nextValue
+                    }
+                }else if(invoker) {
+                    // 移除事件
+                    el.removeEventListener(name, invoker)
+                }
+                
+            }else if(key === 'class') {
+                // 处理class属性
                 el.className = nextValue || ""
             }else if(type === 'boolean' && nextValue === '') {
                 el[key] = true
@@ -148,9 +187,32 @@ const renderer = createRenderer({
         parent.children = el
     }
 })
+
+// 节点描述
+// const vnode = {
+//     type: "h1",
+//     children: "hello"
+// }
+
+// vnode描述事件
 const vnode = {
-    type: "h1",
-    children: "hello"
+    type: 'p',
+    props: {
+        onClick: [
+            () => {
+                alert('clicked1')
+            },
+            () => {
+                alert('clicked2')
+            }
+        ],
+        onContextmenu: [
+            () => {
+                alert("onContextmenu")
+            }
+        ]
+    },
+    children: 'text'
 }
 const container = { type: 'root' }
 renderer.render(vnode, container)

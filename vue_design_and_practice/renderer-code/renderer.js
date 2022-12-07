@@ -31,6 +31,7 @@ function createRenderer(options) {
                 mountElement(n2, container)
             }else {
                 // 更新操作
+                patchElement(n1, n2)
             }
             
         }else if(type === 'object') {
@@ -60,6 +61,11 @@ function createRenderer(options) {
         // 记录旧vnode
         container._vnode = vnode
     }
+    /**
+     * 挂载元素
+     * @param {*} vnode 
+     * @param {*} container 
+     */
     function mountElement(vnode, container) {
         // 创建真实Dom元素, 并将虚拟Dom和真实Dom建立联系
         const el = vnode.el = createElement(vnode.type)
@@ -88,6 +94,55 @@ function createRenderer(options) {
         const parent = vnode.el.parentNode
         if(parent) {
             parent.removeChild(vnode.el)
+        }
+    }
+    function patchElement(n1, n2) {
+        const el = n2.el = n1.el // 这里取的是旧节点的Dom
+        const oldProps = n1.props
+        const newProps = n2.props
+
+        // 1.更新props, 放到旧的el上
+        for(const key in newProps) {
+            // 更新新旧节点同名的属性
+            if(newProps[key] !== oldProps[key]) {
+                patchProps(el, key, oldProps[key], newProps[key])
+            }
+        }
+        for(const key in oldProps) {
+            // 添加在旧节点而不在新节点的属性
+            if(!(key in newProps)) {
+                patchProps(el, key, oldProps[key], null)
+            }
+        }
+
+        // 2.更新children
+        patchChildren(n1, n2, el)
+    }
+    /**
+     * 更新子节点
+     * @param {旧} n1 
+     * @param {新: 没有子节点, 文本节点, 一组节点} n2 
+     * @param {*} container 
+     */
+    function patchChildren(n1, n2, container) {
+        if(typeof n2.children === "string") {
+            // 新节点: 文本节点, 旧节点：一组节点
+            if(Array.isArray(n1.children)) {
+                // 卸载其子节点
+                n1.children.forEach(child => unmount(child))
+            }
+            // 其他情况：只需要将新的文本内容设置给容器元素即可
+            setElementText(container, n2.children)
+        }else if(Array.isArray(n2.children)) {
+            // 新节点：一组节点
+            
+            // 旧节点：也是一组节点
+            if(Array.isArray(n2.children)) {
+                // TODO: diff算法比较新旧节点
+            } else {
+                // 其他两种情况：清除旧节点内部内容, 挂载新节点的内心
+                n2.children.forEach(child => patch(null, child, container))
+            }
         }
     }
 
@@ -151,6 +206,8 @@ const renderer = createRenderer({
                 if(nextValue) {
                     if(!invoker) {
                         invoker = el.vei[key] = (e) => {
+                            // 处理事件冒泡？：阻止所有绑定时间晚于事件触发时间的事件处理函数的执行。
+                            if(e.timeStamp < invoker.attached) return
                             // 处理多个事件回调处理函数的情况, 遍历调用回调函数
                             if(Array.isArray(invoker.value)) {
                                 invoker.value.forEach(fn => fn(e))
@@ -159,6 +216,8 @@ const renderer = createRenderer({
                             }
                         }
                         invoker.value = nextValue
+                        // 记录事件绑定时间
+                        invoker.attached = performance.now()
                         el.addEventListener(name, invoker)
                     }else {
                         // 事件变化时, 更新invoker, 可以减少removeEventListener操作

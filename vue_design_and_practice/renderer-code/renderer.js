@@ -28,7 +28,7 @@ function createRenderer(options) {
     /**
      * 
      * @param {类似这样的对象： { type: 'h1', children: 'hello' }} vnode 
-     * @param {挂载点} container 
+     * @param {挂载点, 本质上是Dom对象} container 
      */
     function render(vnode, container) {
         if(vnode) {
@@ -37,18 +37,21 @@ function createRenderer(options) {
         }else {
             // 旧vnode存在, 新vnode不存在,说明是卸载操作(unmount)
             if(container._vnode) {
-                container.innerHtml = ''
+                // 卸载旧的,真实Dom
+                unmount(container._vnode)
             }
         }
         // 记录旧vnode
         container._vnode = vnode
     }
     function mountElement(vnode, container) {
-        // 创建真实Dom元素
-        const el = createElement(vnode.type)
+        // 创建真实Dom元素, 并将虚拟Dom和真实Dom建立联系
+        const el = vnode.el = createElement(vnode.type)
         // 处理子节点
         if(typeof vnode.children === 'string') {
             setElementText(el, vnode.children)
+        }else if(Array.isArray(vnode.children)) {
+            vnode.children.forEach(child => patch(null, child, el))
         }
 
         // 处理props
@@ -61,6 +64,17 @@ function createRenderer(options) {
         insert(el, container)
         
     }
+    /**
+     * 卸载真实Dom
+     * @param {虚拟Dom} vnode 
+     */
+    function unmount(vnode) {
+        const parent = vnode.el.parentNode
+        if(parent) {
+            parent.removeChild(vnode.el)
+        }
+    }
+
     return {
         render
     }
@@ -70,6 +84,21 @@ function createRenderer(options) {
 function shouldSetAsProps(el, key, value) {
     if(el.tagName === "INPUT" && key === 'form') return false
     return key in el
+}
+/**
+ * 处理props中的class, 转成字串
+ * @param {*} classVal 
+ * @returns 
+ */
+function normalizeClass(classVal) {
+    const type = typeof classVal
+    if(type === 'string') {
+        return classVal
+    }else if(Array.isArray(classVal)) {
+        return [...new Set(classVal.map(c => normalizeClass(c)))].join(" ")
+    }else if(type === 'object') {
+        return [...new Set(Object.keys(classVal).map(key => classVal[key] ? key : ''))].join(" ").trim()
+    }
 }
 
 // test
@@ -85,7 +114,10 @@ const renderer = createRenderer({
     patchProps(el, key, preValue, nextValue) {
         if(shouldSetAsProps(el, key, nextValue)) {
             const type = typeof el[key]
-            if(type === 'boolean' && nextValue === '') {
+            // 处理class属性
+            if(key === 'class') {
+                el.className = nextValue || ""
+            }else if(type === 'boolean' && nextValue === '') {
                 el[key] = true
             }else {
                 el[key] = nextValue

@@ -185,16 +185,23 @@
                         if(newVnode.key === oldVnode.key) {
                             patch(oldVnode, newVnode, container)
                             // 说明：索引小于最大节点, 需要移动该节点
-                            // if(j < lastIndex) {
-                                
-                            // } else {
-                            //     lastIndex = j
-                            // }
+                            if(j < lastIndex) {
+                                // 说明：newVnode是要移动的节点, preVnode是newVnode(当前节点)的前一个节点
+                                // 选择前一个节点的理由：遍历新节点时的顺序就是最终要更新的真实Dom的顺序,所以,将新节点的顺序依次插入, 还原新节点的顺序即可
+                                // preVnode作用(还原新节点顺序的方法)：获取其紧跟的一个兄弟节点, 将其兄弟节点作为newVnode插入的参考点, 才能使用insert方法将newVnode放到preVnode后面
+                                const preVnode = newChildren[i - 1] // 不存在则说明是新节点中的第一个节点不需要移动
+                                if(preVnode) {
+                                    const anchor = preVnode.el.nextSibling
+                                    insert(newVnode.el, container, anchor)
+                                }
+                            } else {
+                                lastIndex = j
+                            }
 
                             // TODO: 当新旧两组子节点的节点顺序不变时，就不需要额外的移动操作(试试这种)
-                            if(j !== i) {
+                            // if(j !== i) {
                                 
-                            }
+                            // }
 
                             break; // 跳出循环, 避免找到后的无效遍历
                         }
@@ -308,10 +315,11 @@ const renderer = createRenderer({
             el.setAttribute(key, nextValue)
         }
     },
-    // 在特定的parent下添加指定元素, anchor为null将被插入到parent的末尾
+    // 将el插入到parent元素内,作为其子节点, 如果anchor存在则将el插入到anchor之前, 如果anchor为null, 则插入到parent的末尾
+    // 如果el是对现在文档中节点的引用,则将el移动到新的位置
     insert(el, parent, anchor = null) {
         console.log(`将${JSON.stringify(el)}, 添加到${JSON.stringify(parent)}`)
-        parent.children = el
+        parent.insertBefore(el, anchor)
     }
 })
 
@@ -441,4 +449,6 @@ renderer.render(vnode, container)
     2     1      // idx = 1
     1     2      // idx = 1, 移动 node1
     3     3      // idx = 1, 
+
+    
 */

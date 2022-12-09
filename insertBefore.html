@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="parent">
+        <p id="refchild"></p>
+        <p id="existnode"></p>
+    </div>
+    <button onclick="insert()">insert</button>
+    <button onclick="insertA()">insert anchor</button>
+    <button onclick="moveExistNode()">moveExistNode</button>
+    <script>
+        const parent = document.getElementById("parent")
+        const child = document.createElement('div')
+        const refchild = document.getElementById("refchild")
+        const existnode = document.getElementById("existnode")
+        const insert = () => {  
+            console.log("insert")
+            parent.insertBefore(child, null)
+        }
+        const insertA = () => {
+            console.log("insertA")
+            parent.insertBefore(child, refchild)
+        }
+        const moveExistNode = () => {
+            parent.insertBefore(existnode, refchild)
+        }
+    </script>
+</body>
+</html>
